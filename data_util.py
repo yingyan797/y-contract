@@ -72,8 +72,8 @@ class Database:
 
     def get_ocr_texts(self, session_id):
         cursor = self._con.cursor()
-        result = cursor.execute("Select message_rank, name, type, ocr_processed_content From file where session_id=?", (session_id,))
-        return [{"with_message": r[0], "file": f"[{r[2]}]-{r[1]}", "text": r[3]} for r in result.fetchall()]
+        result = cursor.execute("Select message_rank, name, type, ocr_processed_content, id From file where session_id=?", (session_id,))
+        return [{"id": r[4], "with_message": r[0], "file": f"[{r[2]}]-{r[1]}", "text": r[3]} for r in result.fetchall()]
     
     def __call__(self, query, params=(), fetch_num=0):
         cursor = self._con.cursor()
@@ -89,6 +89,7 @@ class Database:
 if __name__ == "__main__":
     db = Database('session.db')
     db.start()
-    db("Delete from file", fetch_num=None)
-    # print(db("Select * from session"))
+    # db("Delete from file", fetch_num=None)
+    db("DELETE FROM sqlite_sequence WHERE name='file'", fetch_num=None)
+    print(db("Select id from session"))
     

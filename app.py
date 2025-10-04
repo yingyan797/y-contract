@@ -152,5 +152,18 @@ def rename_session(session_id):
     db("Update session Set title=? Where id=?", (title, session_id,), fetch_num=None)
     return jsonify({'session_id': session_id})
 
+@app.route('/delete_ocr/<int:file_id>', methods=['DELETE'])
+def delete_ocr(file_id):
+    db = get_db()
+    db("Delete from file where id=?", (file_id,), fetch_num=None)
+    return jsonify({'success':True})
+
+@app.route('/edit_ocr/<int:file_id>', methods=['POST'])
+def edit_ocr(file_id):
+    db = get_db()
+    new_text = request.json.get("new_text")
+    db("Update file set ocr_processed_content=? where id=?", (new_text, file_id), fetch_num=None)
+    return jsonify({'success':True})
+
 if __name__ == '__main__':
     app.run(port=5002, debug=True)

@@ -566,11 +566,24 @@
     }
 
     function renderOcrFiles(ocr_files) {
+        ocrList.innerHTML = "";
         ocr_files.forEach((ocr_file, i) => {
             const ocr_item = document.createElement("div");
             const info = document.createElement("li");
-            info.textContent = "Msg #"+ocr_file.with_message+": "+ocr_file.file;
+            info.textContent = ocr_file.id+": Msg #"+ocr_file.with_message+": "+ocr_file.file;
             info.classList.add("file-name")
+
+            const removeButton = document.createElement('button');
+            removeButton.classList.add('remove-file-btn');
+            removeButton.innerHTML = '&times;';
+            removeButton.title = `Delete file from OCR record`;
+            removeButton.addEventListener('click', async () => {
+                await fetch(`/delete_ocr/${ocr_file.id}`, {method: 'DELETE'});
+                // renderOcrFiles(ocr_files.filter(f => f.id != ocr_file.id));
+                ocr_item.remove();
+            });
+            info.appendChild(removeButton);
+
             ocr_item.appendChild(info);
             
             const detail = document.createElement("div");
@@ -586,6 +599,12 @@
 
             const edit = document.createElement("button")
             edit.textContent = "Edit"
+
+            edit.addEventListener("click", async () => {await fetch("/edit_ocr/"+ocr_file.id, 
+                {method: 'POST', 
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ new_text: ocr_text.value })})}) // Send filenames for context
+        
             detail.appendChild(ocr_text);
             detail.appendChild(edit);
             ocr_item.appendChild(detail);
@@ -598,6 +617,7 @@
         // Remove from attachedFiles array
         attachedFiles = attachedFiles.filter(f => f.id !== fileId);        
         renderFileList();
+
         // TODO: In a real app, send a request to backend to delete the file there too
         console.log(`File '${filename}' removed.`);
     };
