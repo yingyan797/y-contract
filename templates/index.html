@@ -54,7 +54,7 @@
 
 .chat-header, .file-header {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     color: #333;
     border-bottom: 1px solid #eee;
     padding-bottom: 10px;
@@ -138,7 +138,7 @@
     background-color: #0056b3;
 }
 
-#file-list {
+.file-list {
     list-style: none;
     padding: 0;
     margin: 0;
@@ -150,7 +150,7 @@
     background-color: #fefefe;
 }
 
-#file-list li {
+.file-list li {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -162,17 +162,17 @@
     transition: background-color 0.2s ease;
 }
 
-#file-list li:hover:not(.no-files-message) {
+.file-list li:hover:not(.no-files-message) {
     background-color: #d3efff;
 }
 
-#file-list li .file-name {
+.file-list li .file-name {
     flex-grow: 1;
     cursor: pointer;
     color: #0056b3;
 }
 
-#file-list li .remove-file-btn {
+.file-list li .remove-file-btn {
     background: none;
     border: none;
     color: #dc3545;
@@ -182,7 +182,7 @@
     padding: 0 5px;
 }
 
-#file-list li .remove-file-btn:hover {
+.file-list li .remove-file-btn:hover {
     color: #c82333;
 }
 
@@ -284,21 +284,29 @@
                 </div>
             </div>
             <div class="chat-input-area">
-                <input type="file" id="file-input" multiple style="display: none;">
-                <button id="attach-file-btn" class="icon-button" title="Attach Files">📎</button>
+                <button id="attach-file-btn" class="icon-button" title="Attach Files" style="background-color: lightgreen;">📎</button>
                 <textarea id="user-message" placeholder="Type your message here..."></textarea>
                 <button id="send-message-btn" class="icon-button" title="Send Message">➤</button>
             </div>
         </div>
 
         <div class="file-management-section">
-            <div class="file-header">
-                <h2>Attached Documents</h2>
+            <table><tr><td><h3>Attached Documents</h3></td><td>
+                <input type="radio" name="file-view-mode" value="raw" checked>Original files
+                <input type="radio" name="file-view-mode" value="ocr-text">Transcribed texts
+            </td></tr></table>
+            <div id="file-input" style="display: none;">
+                <table>
+                    <tr><td>Upload images</td><td><input type="file" id="image-input" accept="image/*" multiple /></td></tr>
+                    <tr><td>Upload PDFs</td><td><input type="file" id="pdf-input" accept="pdf" multiple /></td></tr>
+                    <tr><td><button id="upload-all">Upload All</button></td></tr>
+                </table>
             </div>
-            <ul id="file-list">
+            <ul id="file-list" class="file-list">
                 <!-- Attached files will be listed here -->
                 <li class="no-files-message">No files attached yet.</li>
             </ul>
+            <ul id="ocr-text-list" style="display: none;"  class="file-list"></ul>
             <div id="file-overview-modal" class="modal">
                 <div class="modal-content">
                     <span class="close-button">&times;</span>
@@ -318,19 +326,24 @@
     const userMessageInput = document.getElementById('user-message');
     const sendMessageBtn = document.getElementById('send-message-btn');
     const fileInput = document.getElementById('file-input');
+    const imageInput = document.getElementById('image-input');
+    const pdfInput = document.getElementById('pdf-input');
     const attachFileBtn = document.getElementById('attach-file-btn');
+    const uploadBtn = document.getElementById("upload-all")
     const fileList = document.getElementById('file-list');
+    const ocrList = document.getElementById('ocr-text-list');
     const noFilesMessage = document.querySelector('.no-files-message');
     const sessionList = document.getElementById('session-list');
     const newSessionBtn = document.getElementById('new-session-btn');
     
-    let currentSessionId = null;
+    let currentSessionId = 0;
     const sessionNumD = document.getElementById('session-num');
     let currentTitle = null;
     const titleD = document.getElementById('session-title');
     const renameBtn = document.getElementById('rename');
     const cRenameBtn = document.getElementById('rename-cancel');
-    let messageRank = null;
+    let messageRank = 0;
+    let fileRank = 0;
 
     // File Overview Modal Elements
     const fileOverviewModal = document.getElementById('file-overview-modal');
@@ -368,18 +381,20 @@
     const loadSession = async (sessionId) => {
         // try {
             const response = await fetch(`/get_session/${sessionId}`);
-            const result = await response.json();
+            const data = await response.json();
             chatHistory.innerHTML = '';
             messageRank = 0;
-            addMessageToChat(`Welcome back to the Chat: ${result.title}`, 'bot');
-            result.messages.forEach(msg => {
+            addMessageToChat(`Welcome back to the Chat: ${data.title}`, 'bot');
+            data.messages.forEach(msg => {
                 messageRank++;
                 addMessageToChat(msg.content, msg.role === 'user' ? 'user' : 'bot');
             });
             currentSessionId = sessionId;
             sessionNumD.textContent = sessionId;
-            titleD.innerHTML = result.title;
+            titleD.innerHTML = data.title;
             renameBtn.textContent = "Rename";
+            renderFileList();
+            renderOcrFiles(data.ocr_files)
         // } catch (error) {
         //     console.error('Error loading session:', error);
         // } 
@@ -387,7 +402,6 @@
 
     const renameSession = async () => {
         if (renameBtn.textContent == "Rename") {
-            if (!currentSessionId) return;
             const renameText = document.createElement('textarea');
             renameText.id = "rename-text";
             const origText = titleD.textContent;
@@ -401,8 +415,9 @@
             const response = await fetch('/rename_session/'+currentSessionId, { method: 'POST', headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ title: newTitle }), // Send filenames for context
+                body: JSON.stringify({ session_id: currentSessionId, title: newTitle }), // Send filenames for context
             });
+            currentSessionId = response.json().session_id;
             titleD.innerHTML = newTitle;
             renameBtn.textContent = "Rename";
             cRenameBtn.style.display = 'none';
@@ -458,7 +473,7 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ message: message, attached_files: attachedFiles.map(f => f.name), session_id: currentSessionId, rank: messageRank}), // Send filenames for context
+                body: JSON.stringify({ message: message, session_id: currentSessionId, rank: messageRank}), // Send filenames for context
             });
 
             if (!response.ok) {
@@ -486,99 +501,105 @@
     });
 
     // --- File Attachment & Management ---
+    document.getElementsByName("file-view-mode").forEach((elem) => {
+        elem.addEventListener("click", () => {
+            if (elem.value == "raw") {
+                fileList.style.display = 'block';
+                ocrList.style.display = 'none';
+            } else {
+                fileList.style.display = 'none';
+                ocrList.style.display = 'block';
+            }
+        })
+    })
+
     let attachedFiles = []; // Stores File objects (or simplified data)
 
     attachFileBtn.addEventListener('click', () => {
-        fileInput.click(); // Trigger the hidden file input
+        const d = fileInput.style.display;
+        fileInput.style.display = d == "none" ? "block": "none"; // Trigger the hidden file input
     });
 
-    fileInput.addEventListener('change', async (event) => {
-        const files = event.target.files;
+    // NEW: Common function to process files from any input
+    const handleFilesAttached = (files) => {
         if (files.length === 0) return;
-
-        if (noFilesMessage) {
-            noFilesMessage.remove(); // Remove "No files attached yet" message
-        }
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            // Prevent duplicate files by name for simplicity
-            if (!attachedFiles.some(f => f.name === file.name)) {
-                attachedFiles.push(file);
-                addFileToList(file);
-
-                // Optionally, upload file immediately to backend
-                await uploadFileToBackend(file);
-            }
+            fileRank++;
+            attachedFiles.push({id: fileRank, sessionId: currentSessionId, withMessage: messageRank+1, body: file});
         }
-        fileInput.value = ''; // Clear the file input for re-selection
-    });
-
-    const addFileToList = (file) => {
-        const listItem = document.createElement('li');
-        listItem.dataset.filename = file.name; // Store filename for easy lookup
-
-        const fileNameSpan = document.createElement('span');
-        fileNameSpan.classList.add('file-name');
-        fileNameSpan.textContent = file.name;
-        fileNameSpan.title = "Click to overview";
-        fileNameSpan.addEventListener('click', () => showFileOverview(file));
-
-        const removeButton = document.createElement('button');
-        removeButton.classList.add('remove-file-btn');
-        removeButton.innerHTML = '&times;';
-        removeButton.title = `Remove ${file.name}`;
-        removeButton.addEventListener('click', () => removeFile(file.name, listItem));
-
-        listItem.appendChild(fileNameSpan);
-        listItem.appendChild(removeButton);
-        fileList.appendChild(listItem);
     };
 
-    const removeFile = (filename, listItem) => {
-        // Remove from frontend list
-        listItem.remove();
-        // Remove from attachedFiles array
-        attachedFiles = attachedFiles.filter(f => f.name !== filename);
+    function renderFileList() {
+        fileList.innerHTML = "";
+        let numFiles = 0;
+        attachedFiles.forEach((file) => {
+            if (file.sessionId != currentSessionId) {
+                return;
+            }
+            const listItem = document.createElement('li');
+            listItem.dataset.filename = file.body.name; // Store filename for easy lookup
 
-        // If no files left, show the "No files attached yet" message
-        if (attachedFiles.length === 0) {
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.classList.add('file-name');
+            fileNameSpan.textContent = file.id + " - " + file.body.name;
+            fileNameSpan.title = "Click to overview";
+            fileNameSpan.addEventListener('click', () => showFileOverview(file.body));
+
+            const removeButton = document.createElement('button');
+            removeButton.classList.add('remove-file-btn');
+            removeButton.innerHTML = '&times;';
+            removeButton.title = `Remove ${file.body.name}`;
+            removeButton.addEventListener('click', () => removeFile(file.id));
+
+            listItem.appendChild(fileNameSpan);
+            listItem.appendChild(removeButton);
+            fileList.appendChild(listItem);
+        });    
+        if (fileList.innerHTML == "") {
             const msg = document.createElement('li');
             msg.classList.add('no-files-message');
             msg.textContent = 'No files attached yet.';
             fileList.appendChild(msg);
-        }
+        }  
+    }
 
+    function renderOcrFiles(ocr_files) {
+        ocr_files.forEach((ocr_file, i) => {
+            const ocr_item = document.createElement("div");
+            const info = document.createElement("li");
+            info.textContent = "Msg #"+ocr_file.with_message+": "+ocr_file.file;
+            info.classList.add("file-name")
+            ocr_item.appendChild(info);
+            
+            const detail = document.createElement("div");
+            const ocr_text = document.createElement("textarea")
+            ocr_text.rows = 8;
+            ocr_text.style.width = "85%";
+            ocr_text.value = ocr_file.text;
+
+            info.addEventListener("click", () => {
+                const d = detail.style.display;
+                detail.style.display = d!='none' ? 'none': 'block';
+            })
+
+            const edit = document.createElement("button")
+            edit.textContent = "Edit"
+            detail.appendChild(ocr_text);
+            detail.appendChild(edit);
+            ocr_item.appendChild(detail);
+            
+            ocrList.appendChild(ocr_item);
+        })
+    }
+
+    const removeFile = (fileId) => {
+        // Remove from attachedFiles array
+        attachedFiles = attachedFiles.filter(f => f.id !== fileId);        
+        renderFileList();
         // TODO: In a real app, send a request to backend to delete the file there too
         console.log(`File '${filename}' removed.`);
-    };
-
-    const uploadFileToBackend = async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            const response = await fetch('/upload_file', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log('File upload response:', data.message);
-            // You might want to update the file object with a server-side ID here
-            // e.g., file.id = data.file_id;
-        } catch (error) {
-            console.error('Error uploading file:', error);
-            // Revert adding file to list or show error to user
-            const existingItem = document.querySelector(`li[data-filename="${file.name}"]`);
-            if (existingItem) existingItem.remove();
-            attachedFiles = attachedFiles.filter(f => f.name !== file.name);
-            alert(`Failed to upload ${file.name}. Please try again.`);
-        }
     };
 
     // --- File Overview Modal ---
@@ -636,6 +657,43 @@
     window.addEventListener('click', (event) => {
         if (event.target === fileOverviewModal) {
             fileOverviewModal.style.display = 'none';
+        }
+    });
+
+    const processImagesAndPDFs = async (imageFiles, pdfFiles) => {
+        const formData = new FormData();
+        formData.append('session_id', currentSessionId);
+        formData.append('message_rank', messageRank+1);
+        Array.from(imageFiles).forEach(file => formData.append('image_files', file));
+        Array.from(pdfFiles).forEach(file => formData.append('pdf_files', file));
+        
+        try {
+            const response = await fetch('/upload_files', {
+                method: 'POST',
+                body: formData,
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            currentSessionId = data.session_id;
+            renderOcrFiles(data.ocr_files);
+        } catch (error) {
+            console.error('Error processing documents:', error);
+        }
+    };
+
+    uploadBtn.addEventListener('click', async () => {
+        const imageFiles = imageInput.files;
+        const pdfFiles = pdfInput.files;
+        
+        if (imageFiles.length + pdfFiles.length > 0) {
+            handleFilesAttached(imageFiles);
+            handleFilesAttached(pdfFiles);
+            renderFileList();
+            await processImagesAndPDFs(imageFiles, pdfFiles);
         }
     });
 

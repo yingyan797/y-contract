@@ -46,7 +46,9 @@ class Database:
             CREATE TABLE IF NOT EXISTS file (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_id INTEGER,
-                name TEXT NOT NULL,
+                message_rank INTEGER,
+                name TEXT,
+                type TEXT,
                 ocr_processed_content TEXT,
                 FOREIGN KEY (session_id) REFERENCES session (id)
             )
@@ -67,6 +69,11 @@ class Database:
         cursor.execute('INSERT INTO message (session_id, role, rank, content) VALUES (?, ?, ?, ?)', 
                     (session_id, role, rank, content))
         self._con.commit()
+
+    def get_ocr_texts(self, session_id):
+        cursor = self._con.cursor()
+        result = cursor.execute("Select message_rank, name, type, ocr_processed_content From file where session_id=?", (session_id,))
+        return [{"with_message": r[0], "file": f"[{r[2]}]-{r[1]}", "text": r[3]} for r in result.fetchall()]
     
     def __call__(self, query, params=(), fetch_num=0):
         cursor = self._con.cursor()
@@ -82,5 +89,6 @@ class Database:
 if __name__ == "__main__":
     db = Database('session.db')
     db.start()
+    db("Delete from file", fetch_num=None)
     # print(db("Select * from session"))
     
