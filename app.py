@@ -1,9 +1,8 @@
-import os
-from webbrowser import get
 from flask import Flask, render_template, request, jsonify, g
 from werkzeug.utils import secure_filename
-import time # For simulating AI response delay
+import time, os # For simulating AI response delay
 from data_util import Database
+from agents.ocr import OCRProcessor
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads/'  # Directory to save uploaded files
@@ -17,6 +16,11 @@ def get_db():
         g.db = Database("session.db")
     g.db.start()
     return g.db
+
+def get_ocr():
+    if "OCR" not in app.config:
+        app.config["OCR"] = OCRProcessor()
+    return app.config["OCR"]
 
 @app.teardown_appcontext
 def close_db(error):
@@ -93,8 +97,13 @@ def upload_file():
     if file:
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        print(f"File '{filename}' saved to {filepath}")
+        # file.save(filepath)
+        # print(f"File '{filename}' saved to {filepath}")
+        
+        ocr_processor = get_ocr()
+        
+        db = get_db()
+        db("Insert into file ()")
         # In a real application, you'd likely process this file
         # (e.g., store metadata in a DB, pass to Langchain for processing)
         return jsonify({'message': f'File {filename} uploaded successfully.', 'filename': filename}), 200

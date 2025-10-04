@@ -82,4 +82,5 @@ class Database:
 if __name__ == "__main__":
     db = Database('session.db')
     db.start()
-    print(db("Select * from session"))
+    # print(db("Select * from session"))
+    
