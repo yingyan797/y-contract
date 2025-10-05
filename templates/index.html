@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Contract Advisory Agent</title>
+    <style>
+        body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f7f6;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.container {
+    display: flex;
+    width: 97%;
+    max-width: 1400px;
+    height: 95vh;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.session-history-section {
+    flex: 0 0 150px;
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #eee;
+    background-color: #f5f5f5;
+}
+
+.chat-section, .file-management-section {
+    flex: 1;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-section {
+    border-right: 1px solid #eee;
+    background-color: #fcfcfc;
+}
+
+.file-management-section {
+    background-color: #f9f9f9;
+}
+
+.chat-header, .file-header {
+    text-align: center;
+    margin-bottom: 10px;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.chat-history {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-right: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    background-color: #fefefe;
+}
+
+.message {
+    margin-bottom: 15px;
+    padding: 10px 15px;
+    border-radius: 18px;
+    max-width: 80%;
+    word-wrap: break-word;
+    line-height: 1.5;
+}
+
+.user-message {
+    background-color: #dcf8c6;
+    align-self: flex-end;
+    margin-left: auto;
+    border-bottom-right-radius: 4px;
+}
+
+.bot-message {
+    background-color: #e6e6e6;
+    align-self: flex-start;
+    margin-right: auto;
+    border-bottom-left-radius: 4px;
+}
+
+.message p {
+    margin: 0;
+}
+
+.chat-input-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 5px;
+    border-top: 1px solid #eee;
+}
+
+#user-message {
+    flex-grow: 1;
+    padding: 5px 10px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    resize: none;
+    font-size: 1rem;
+    max-height: 180px;
+    min-height: 120px;
+    box-sizing: border-box;
+}
+
+.icon-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.icon-button:hover {
+    background-color: #0056b3;
+}
+
+.file-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex-grow: 1;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 10px;
+    background-color: #fefefe;
+}
+
+.file-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background-color: #e9f7ff;
+    border-radius: 5px;
+    border: 1px solid #cceeff;
+    transition: background-color 0.2s ease;
+}
+
+.file-list li:hover:not(.no-files-message) {
+    background-color: #d3efff;
+}
+
+.file-list li .file-name {
+    flex-grow: 1;
+    cursor: pointer;
+    color: #0056b3;
+}
+
+.file-list li .remove-file-btn {
+    background: none;
+    border: none;
+    color: #dc3545;
+    font-size: 1.1rem;
+    cursor: pointer;
+    margin-left: 10px;
+    padding: 0 5px;
+}
+
+.file-list li .remove-file-btn:hover {
+    color: #c82333;
+}
+
+.no-files-message {
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    padding: 20px;
+}
+
+/* Modal for File Overview */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%; /* Could be more specific */
+    max-width: 700px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    position: relative;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.close-button {
+    color: #aaa;
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close-button:hover,
+.close-button:focus {
+    color: black;
+    text-decoration: none;
+}
+
+#file-content-display {
+    margin-top: 15px;
+    padding: 15px;
+    border: 1px solid #eee;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    flex-grow: 1;
+    overflow-y: auto;
+    white-space: pre-wrap; /* Preserves whitespace and wraps text */
+    word-wrap: break-word; /* Breaks long words */
+}
+
+#session-list div:hover {
+    background-color: #d3efff !important;
+}
+
+#new-session-btn:hover {
+    background-color: #0056b3;
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="session-history-section">
+            <div class="chat-header">
+                <h3>Chat Sessions</h3>
+            </div>
+            <div id="session-list" style="flex-grow: 1; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px; background-color: #fefefe;">
+                <!-- Session history will be loaded here -->
+            </div>
+            <button id="new-session-btn" style="margin-top: 10px; padding: 8px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">New Session</button>
+        </div>
+        <div class="chat-section">
+            <div class="chat-header">
+                <table><tr><th>Chat - <i id="session-num"></i> - </th><td id="session-title"></td>
+                    <td><button id="rename">Rename</button><button id="rename-cancel" style="display: none;">Cancel</button></td>
+                    <td><button id="del-session" disabled>Delete</button></td></tr></table>
+            </div>
+            <div class="chat-history" id="chat-history">
+                <!-- Chat messages will be appended here -->
+                <div class="message bot-message">
+                    <p>Hello! I'm your legal contract advisory agent. How can I assist you today?</p>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <button id="mic-btn" class="icon-button" title="Record Audio" style="background-color: lightgreen;">🎤</button>
+                <textarea id="user-message" placeholder="Type message or speak to ^Y-Contract in any language you like ..."></textarea>
+                <button id="send-message-btn" class="icon-button" title="Send Message">➤</button>
+            </div>
+            <div id="audio-recorder" style="display: none; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 10px; background-color: #f9f9f9;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="start-record" style="padding: 5px 10px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">Start</button>
+                    <button id="stop-record" style="padding: 5px 10px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer;" disabled>Stop</button>
+                    <button id="confirm-record" style="padding: 5px 10px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;" disabled>Confirm</button>
+                    <!-- <button id="cancel-record" style="padding: 5px 10px; background-color: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">Cancel</button> -->
+                    <audio id="input-player" controls></audio>
+                    <span id="record-status" style="margin-left: 10px; color: #666;">Ready to record</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="file-management-section">
+            <table><tr><td><button id="attach-file-btn" title="Attach Files" style="background-color: lightgreen;">+ Add document</button></td><td><h3>
+                All Documents</h3></td><td>
+                <input type="radio" name="file-view-mode" value="raw" checked>Original files
+                <input type="radio" name="file-view-mode" value="ocr-text">Transcribed texts
+            </td></tr></table>
+            <div id="file-input" style="display: none;">
+                <table>
+                    <tr><td>Upload images</td><td><input type="file" id="image-input" accept="image/*" multiple /></td></tr>
+                    <tr><td>Upload PDFs</td><td><input type="file" id="pdf-input" accept="pdf" multiple /></td></tr>
+                    <tr><td>Upload Texts</td><td><input type="file" id="text-input" accept="text/*" multiple /></td></tr>
+                    <tr><td><input type="checkbox" id="cMark" value="contract">Mark as Contract(s)
+                        <button id="upload-all">Upload All</button></td></tr>
+                </table>
+            </div>
+            <ul id="file-list" class="file-list">
+                <!-- Attached files will be listed here -->
+                <li class="no-files-message">No files attached yet.</li>
+            </ul>
+            <ul id="ocr-text-list" style="display: none;"  class="file-list"></ul>
+            <div id="file-overview-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close-button">&times;</span>
+                    <h3>File Overview: <span id="overview-filename"></span></h3>
+                    <div id="file-content-display">
+                        <!-- Content for file overview will be displayed here -->
+                        <p>Loading file content...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+    const chatHistory = document.getElementById('chat-history');
+    const userMessageInput = document.getElementById('user-message');
+    const sendMessageBtn = document.getElementById('send-message-btn');
+    const fileInput = document.getElementById('file-input');
+    const imageInput = document.getElementById('image-input');
+    const pdfInput = document.getElementById('pdf-input');
+    const textInput = document.getElementById('text-input');
+    const attachFileBtn = document.getElementById('attach-file-btn');
+    const uploadBtn = document.getElementById("upload-all")
+    const fileList = document.getElementById('file-list');
+    const ocrList = document.getElementById('ocr-text-list');
+    const noFilesMessage = document.querySelector('.no-files-message');
+    const sessionList = document.getElementById('session-list');
+    const newSessionBtn = document.getElementById('new-session-btn');
+    
+    let currentSessionId = 0;
+    const sessionNumD = document.getElementById('session-num');
+    let currentTitle = null;
+    const titleD = document.getElementById('session-title');
+    const renameBtn = document.getElementById('rename');
+    const cRenameBtn = document.getElementById('rename-cancel');
+    let messageRank = 0;
+    let fileRank = 0;
+
+    const micBtn = document.getElementById("mic-btn");
+    let mediaRecorder;
+    let recordedChunks = [];
+    let recordedBlob = null; // Declare recordedBlob
+    const startRecBtn = document.getElementById('start-record');
+    const stopRecBtn = document.getElementById('stop-record');
+    const confRecBtn = document.getElementById('confirm-record');
+    const recPlayer = document.getElementById('input-player');
+    const recStatus = document.getElementById('record-status');
+
+    // File Overview Modal Elements
+    const fileOverviewModal = document.getElementById('file-overview-modal');
+    const closeButton = fileOverviewModal.querySelector('.close-button');
+    const overviewFilename = document.getElementById('overview-filename');
+    const fileContentDisplay = document.getElementById('file-content-display');
+
+    // --- Session Management ---
+    const loadSessions = async () => {
+        try {
+            const response = await fetch('/get_sessions');
+            const sessions = await response.json();
+            sessionList.innerHTML = '';
+            sessions.forEach(session => {
+                const sessionDiv = document.createElement('table');
+                sessionDiv.style.cssText = 'padding: 8px; margin: 5px 0; background: #e9f7ff; border-radius: 5px; cursor: pointer;';
+                const tr = document.createElement('tr');
+                const th = document.createElement('th');
+                th.textContent = `${session.id}`;
+                const td = document.createElement('td');
+                td.style.fontSize = 'small';
+                td.style.color = 'grey';
+                td.textContent = `${session.title.substring(0, 30)}`;
+                tr.appendChild(th)
+                tr.appendChild(td)
+                sessionDiv.appendChild(tr);
+                sessionDiv.onclick = () => loadSession(session.id);
+                sessionList.appendChild(sessionDiv);
+            });
+        } catch (error) {
+            console.error('Error loading sessions:', error);
+        }
+    };
+    
+    const loadSession = async (sessionId) => {
+        // try {
+            const response = await fetch(`/get_session/${sessionId}`);
+            const data = await response.json();
+            chatHistory.innerHTML = '';
+            messageRank = 0;
+            addMessageToChat(`Welcome back to the Chat: ${data.title}`, 'bot');
+            data.messages.forEach(msg => {
+                messageRank++;
+                addMessageToChat(msg.content, msg.role === 'user' ? 'user' : 'bot');
+            });
+            currentSessionId = sessionId;
+            sessionNumD.textContent = sessionId;
+            titleD.innerHTML = data.title;
+            renameBtn.textContent = "Rename";
+            renderFileList();
+            renderOcrFiles(data.ocr_files)
+        // } catch (error) {
+        //     console.error('Error loading session:', error);
+        // } 
+    };
+
+    const renameSession = async () => {
+        if (renameBtn.textContent == "Rename") {
+            const renameText = document.createElement('textarea');
+            renameText.id = "rename-text";
+            const origText = titleD.textContent;
+            renameText.textContent = origText;
+            titleD.textContent = "";
+            titleD.appendChild(renameText);
+            renameBtn.textContent = "Confirm";
+            cRenameBtn.style.display = 'block';
+        } else {
+            const newTitle = document.getElementById("rename-text").value;
+            const body = { title: newTitle };
+            if (currentSessionId > 0) {
+                body.session_id = currentSessionId;
+            }
+            const response = await fetch('/rename_session', { method: 'POST', headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body), // Send filenames for context
+            });
+            currentSessionId = response.json().session_id;
+            titleD.innerHTML = newTitle;
+            renameBtn.textContent = "Rename";
+            cRenameBtn.style.display = 'none';
+            loadSessions();
+        }
+        
+    }
+    const cancelRename = () => { 
+        titleD.innerHTML = document.getElementById("rename-text").value;
+        cRenameBtn.style.display = 'none';
+        renameBtn.textContent = "Rename";
+    }
+    renameBtn.addEventListener('click', renameSession);
+    cRenameBtn.addEventListener('click', cancelRename);
+    
+    const createNewSession = async () => {
+        try {
+            const response = await fetch('/new_session', { method: 'POST' });
+            const data = await response.json();
+            currentSessionId = data.session_id;
+            sessionNumD.textContent = currentSessionId;
+            messageRank = 0;
+            chatHistory.innerHTML = '<div class="message bot-message"><p>Hello! I\'m your legal contract advisory agent. How can I assist you today?</p></div>';
+            loadSessions();
+        } catch (error) {
+            console.error('Error creating session:', error);
+        }
+    };
+    
+    newSessionBtn.addEventListener('click', createNewSession);
+    
+    // --- Chat functionality ---
+    const addMessageToChat = (message, sender) => {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', `${sender}-message`);
+        const messageText = document.createElement('p');
+        messageText.textContent = `${messageRank}) ${message}`;
+        messageDiv.append(messageText);
+        if (sender == 'bot') {
+            messageText.style.marginBottom = "10px";
+            const audioPanel = document.createElement("div");
+            // audioPanel.style.backgroundColor = "grey";
+            audioPanel.innerHTML = `
+                <audio controls src="/uploads/recording.webm" style='height: 20px'>
+                    Your browser does not support the audio element.
+                </audio>
+            `
+            const listen = document.createElement("button");
+            listen.textContent = "Listen response";
+            listen.addEventListener('click', () => {
+                // TODO: Text to Speech API
+            })
+            audioPanel.appendChild(listen);
+            messageDiv.appendChild(audioPanel);
+
+        }
+        chatHistory.appendChild(messageDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight; // Auto-scroll to bottom
+    };
+
+    const sendMessage = async () => {
+        const message = userMessageInput.value.trim();
+        if (message === '') return;
+        messageRank++;
+        addMessageToChat(message, 'user');
+        userMessageInput.value = ''; // Clear input
+
+        // Placeholder for sending message to backend and getting AI response
+        // In a real app, you'd send `message` and any attached files' IDs
+        try {
+
+            const body = { message: message, rank: messageRank};
+            if (currentSessionId > 0) {
+                body.session_id = currentSessionId;
+            }
+            const response = await fetch('/send_message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body), // Send filenames for context
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            messageRank++;
+            addMessageToChat(data.ai_response, 'bot'); // Display AI's response
+            currentSessionId = data.session_id; // Update current session
+            sessionNumD.textContent = currentSessionId;
+        } catch (error) {
+            console.error('Error sending message:', error);
+            addMessageToChat("Sorry, I'm having trouble connecting right now. Please try again.", 'bot');
+        }
+    };
+
+    sendMessageBtn.addEventListener('click', sendMessage);
+
+    userMessageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Prevent new line
+            sendMessage();
+        }
+    });
+
+    // --- Microphone recording ---
+    function setStatus(s) { recStatus.textContent = s; } // Corrected reference to recStatus
+
+    startRecBtn.addEventListener('click', async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus('getUserMedia not supported in this browser');
+        return;
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
+        mediaRecorder.ondataavailable = e => {
+            if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstart = () => { setStatus('Recording...'); };
+        mediaRecorder.onstop = () => { setStatus('Stopped'); };
+
+        mediaRecorder.start();
+
+        startRecBtn.disabled = true;
+        stopRecBtn.disabled = false;
+        confRecBtn.disabled = true;
+
+        // Clear previous audio if any
+        if (recPlayer.src) {
+            URL.revokeObjectURL(recPlayer.src);
+            recPlayer.removeAttribute('src');
+            recPlayer.load();
+            recPlayer.controls = false;
+        }
+        recordedBlob = null;
+        recordedChunks = [];
+
+    } catch (err) {
+        console.error(err);
+        setStatus('Error accessing microphone: ' + err.message);
+        }
+    });
+
+    stopRecBtn.addEventListener('click', () => {
+        if (!mediaRecorder) return;
+        
+        startRecBtn.disabled = false;
+        stopRecBtn.disabled = true;
+
+        // Wait for the onstop event to process the recording
+        mediaRecorder.onstop = () => {
+            setStatus('Stopped');
+            
+            // Create blob for playback
+            if (recordedChunks.length > 0) {
+                const mimeType = recordedChunks[0]?.type || 'audio/webm'; // Fallback MIME type
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                recordedBlob = blob;
+                confRecBtn.disabled = false;
+
+                // Ensure player is stopped and cleared before setting new source
+                recPlayer.pause(); // Pause any current playback
+                if (recPlayer.src) {
+                    URL.revokeObjectURL(recPlayer.src);
+                }
+                recPlayer.removeAttribute('src'); // Clear the source attribute
+                recPlayer.load(); // Ensure the audio element is reset
+
+                // Set the new object URL as the source
+                const newBlobUrl = URL.createObjectURL(recordedBlob);
+                recPlayer.src = newBlobUrl;
+                recPlayer.controls = true; // Show controls
+                recPlayer.load(); // Explicitly tell the audio element to load the new source
+                console.log("Audio blob set for playback. Blob size:", recordedBlob.size, "type:", recordedBlob.type);
+                // recPlayer.play(); // Optional: uncomment to auto-play after recording stops
+            } else {
+                setStatus('No audio data recorded.');
+                recPlayer.controls = false;
+                recPlayer.removeAttribute('src');
+                recPlayer.load();
+            }
+        };
+        
+        mediaRecorder.stop(); // Stop the recorder - this will trigger onstop event
+    });
+
+    confRecBtn.addEventListener('click', async () => {
+        if (!recordedBlob) return;
+        
+        const form = new FormData();
+        form.append('rec_input', recordedBlob, 'recording.webm');
+        
+        setStatus('Uploading...');
+        
+        try {
+            const res = await fetch('/process_audio', {
+                method: 'POST',
+                body: form
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                setStatus('Upload successful');
+                document.getElementById('audio-recorder').style.display = 'none';
+                // Revoke blob URL after successful upload and clear player state
+                if (recPlayer.src) {
+                    URL.revokeObjectURL(recPlayer.src);
+                    recPlayer.removeAttribute('src'); // Clear the source
+                    recPlayer.load(); // Reload the audio element
+                    recPlayer.controls = false; // Hide controls until new recording
+                }
+                recordedBlob = null; // Clear the recorded blob
+                recordedChunks = []; // Clear chunks for next recording
+                userMessageInput.value = data.transcribed_text;
+            } else {
+                setStatus('Upload failed');
+            }
+        } catch (err) {
+            console.error(err);
+            setStatus('Upload error: ' + err.message);
+        }
+    });
+
+    micBtn.addEventListener('click', () => {
+        const recPanel = document.getElementById("audio-recorder");
+        if (recPanel.style.display != 'none') {
+            recPanel.style.display = 'none';
+        } else {
+            recPanel.style.display = 'block';
+        }
+    })
+
+    // --- File Attachment & Management ---
+    document.getElementsByName("file-view-mode").forEach((elem) => {
+        elem.addEventListener("click", () => {
+            if (elem.value == "raw") {
+                fileList.style.display = 'block';
+                ocrList.style.display = 'none';
+            } else {
+                fileList.style.display = 'none';
+                ocrList.style.display = 'block';
+            }
+        })
+    })
+
+    let attachedFiles = []; // Stores File objects (or simplified data)
+
+    attachFileBtn.addEventListener('click', () => {
+        const d = fileInput.style.display;
+        fileInput.style.display = d == "none" ? "block": "none"; // Trigger the hidden file input
+    });
+
+    // NEW: Common function to process files from any input
+    const handleFilesAttached = (files) => {
+        if (files.length === 0) return;
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            fileRank++;
+            // console.log("Add to session "+currentSessionId)
+            attachedFiles.push({id: fileRank, sessionId: currentSessionId, withMessage: messageRank+1, body: file});
+        }
+    };
+
+    function renderFileList() {
+        fileList.innerHTML = "";
+        attachedFiles.forEach((file) => {
+            // console.log(file.id+" "+file.sessionId)
+            if (file.sessionId != currentSessionId) {
+                return;
+            }
+            const listItem = document.createElement('li');
+            listItem.dataset.filename = file.body.name; // Store filename for easy lookup
+
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.classList.add('file-name');
+            fileNameSpan.textContent = file.id + " - " + file.body.name;
+            fileNameSpan.title = "Click to overview";
+            fileNameSpan.addEventListener('click', () => showFileOverview(file.body));
+
+            const removeButton = document.createElement('button');
+            removeButton.classList.add('remove-file-btn');
+            removeButton.innerHTML = '&times;';
+            removeButton.title = `Remove ${file.body.name}`;
+            removeButton.addEventListener('click', () => removeFile(file.id));
+
+            listItem.appendChild(fileNameSpan);
+            listItem.appendChild(removeButton);
+            fileList.appendChild(listItem);
+        });    
+        if (fileList.innerHTML == "") {
+            const msg = document.createElement('li');
+            msg.classList.add('no-files-message');
+            msg.textContent = 'No files attached yet.';
+            fileList.appendChild(msg);
+        }  
+    }
+
+    function renderOcrFiles(ocr_files) {
+        ocrList.innerHTML = "";
+        ocr_files.forEach((ocr_file, i) => {
+            const ocr_item = document.createElement("div");
+            const info = document.createElement("li");
+            const head = document.createElement("strong");
+            head.textContent = ocr_file.id+": Msg #"+ocr_file.with_message+": "
+            const name = document.createElement("span");
+            name.textContent = ocr_file.file;
+            info.classList.add("file-name")
+            info.appendChild(head);
+            info.appendChild(name);
+            if (ocr_file.is_contract > 0) {
+                const contractLabel = document.createElement("i");
+                contractLabel.textContent = "<Contract>";
+                contractLabel.style.color = "lightseagreen";
+                info.appendChild(contractLabel);
+            }
+
+            const removeButton = document.createElement('button');
+            removeButton.classList.add('remove-file-btn');
+            removeButton.innerHTML = '&times;';
+            removeButton.title = `Delete file from OCR record`;
+            removeButton.addEventListener('click', async () => {
+                await fetch(`/delete_ocr/${ocr_file.id}`, {method: 'DELETE'});
+                // renderOcrFiles(ocr_files.filter(f => f.id != ocr_file.id));
+                ocr_item.remove();
+            });
+            info.appendChild(removeButton);
+
+            ocr_item.appendChild(info);
+            
+            const detail = document.createElement("div");
+            const ocr_text = document.createElement("textarea")
+            ocr_text.rows = 8;
+            ocr_text.style.width = "85%";
+            ocr_text.value = ocr_file.text;
+
+            info.addEventListener("click", () => {
+                const d = detail.style.display;
+                detail.style.display = d!='none' ? 'none': 'block';
+            })
+
+            const edit = document.createElement("button")
+            edit.textContent = "Edit"
+
+            edit.addEventListener("click", async () => {await fetch("/edit_ocr/"+ocr_file.id, 
+                {method: 'POST', 
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ new_text: ocr_text.value })})}) // Send filenames for context
+        
+            detail.appendChild(ocr_text);
+            detail.appendChild(edit);
+            ocr_item.appendChild(detail);
+            
+            ocrList.appendChild(ocr_item);
+        })
+    }
+
+    const removeFile = (fileId) => {
+        // Remove from attachedFiles array
+        attachedFiles = attachedFiles.filter(f => f.id !== fileId);        
+        renderFileList();
+
+        // TODO: In a real app, send a request to backend to delete the file there too
+        console.log(`File with ID '${fileId}' removed.`); // Corrected log to use fileId
+    };
+
+    // --- File Overview Modal ---
+    const showFileOverview = async (file) => {
+        overviewFilename.textContent = file.name;
+        fileContentDisplay.innerHTML = '<p>Loading file content...</p>'; // Reset content
+
+        fileOverviewModal.style.display = 'flex'; // Show modal
+
+        // Placeholder for fetching file content from backend
+        // In a real application, you'd fetch the file content from the server
+        // This is a client-side reader for demonstration for simple text files
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            fileContentDisplay.textContent = e.target.result;
+        };
+        reader.onerror = () => {
+            fileContentDisplay.textContent = 'Could not read file locally.';
+        };
+
+        // Only try to read text for specific file types
+        if (file.type.startsWith('text/') || file.type === 'application/json' || file.type === 'application/xml') {
+            reader.readAsText(file);
+        } else if (file.type.startsWith('image/')) {
+            // For images, display the image itself
+            reader.onload = (e) => {
+                fileContentDisplay.innerHTML = `<img src="${e.target.result}" style="max-width: 100%; height: auto;">`;
+            };
+            reader.readAsDataURL(file);
+        }
+        else {
+            fileContentDisplay.textContent = `Preview not available for file type: ${file.type}. You can download it to view.`;
+        }
+
+        // Example of fetching from backend if needed (uncomment and implement backend route)
+        /*
+        try {
+            const response = await fetch(`/get_file_content/${file.name}`); // Assuming filename is unique
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const content = await response.text(); // Or response.json() if structured
+            fileContentDisplay.textContent = content;
+        } catch (error) {
+            console.error('Error fetching file content:', error);
+            fileContentDisplay.textContent = 'Could not load file content from server.';
+        }
+        */
+    };
+
+    closeButton.addEventListener('click', () => {
+        fileOverviewModal.style.display = 'none';
+    });
+
+    window.addEventListener('click', (event) => {
+        if (event.target === fileOverviewModal) {
+            fileOverviewModal.style.display = 'none';
+        }
+    });
+
+    const processMedia = async (imageFiles, pdfFiles, textFiles) => {
+        const formData = new FormData();
+        if (document.getElementById("cMark").checked) {
+            formData.append('is_contract', 1);
+        }
+        if (currentSessionId > 0) {
+            formData.append('session_id', currentSessionId);
+        }
+        formData.append('message_rank', messageRank+1);
+        Array.from(imageFiles).forEach(file => formData.append('image_files', file));
+        Array.from(pdfFiles).forEach(file => formData.append('pdf_files', file));
+        Array.from(textFiles).forEach(file => formData.append('text_files', file));
+        
+        try {
+            const response = await fetch('/upload_files', {
+                method: 'POST',
+                body: formData,
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            currentSessionId = data.session_id; // Update current session
+            sessionNumD.textContent = currentSessionId;
+            loadSessions();
+            renderOcrFiles(data.ocr_files);
+        } catch (error) {
+            console.error('Error processing documents:', error);
+        }
+    };
+
+    uploadBtn.addEventListener('click', async () => {
+        const imageFiles = imageInput.files;
+        const pdfFiles = pdfInput.files;
+        const textFiles = textInput.files;
+        
+        if (imageFiles.length + pdfFiles.length + textFiles.length > 0) {
+            await processMedia(imageFiles, pdfFiles, textFiles);
+            handleFilesAttached(imageFiles);
+            handleFilesAttached(pdfFiles);
+            handleFilesAttached(textFiles);
+            renderFileList();
+        }
+        imageInput.value = "" ;
+        pdfInput.value = "" ;
+        textInput.value = "" ;
+
+    });
+
+    // Initial check for no files
+    if (attachedFiles.length === 0 && !document.querySelector('.no-files-message')) {
+        const msg = document.createElement('li');
+        msg.classList.add('no-files-message');
+        msg.textContent = 'No files attached yet.';
+        fileList.appendChild(msg);
+    }
+    
+    // Initialize
+    loadSessions();
+});
+    </script>
+</body>
+</html>

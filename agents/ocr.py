@@ -1,6 +1,7 @@
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
 
+
 class OCRProcessor:
     def __init__(self) -> None:
         # 1. Load a lightweight OCR predictor (detection + recognition)

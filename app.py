@@ -3,13 +3,14 @@ from werkzeug.utils import secure_filename
 import time, os # For simulating AI response delay
 from data_util import Database
 from agents.ocr import OCRProcessor
+from PIL import Image
+from io import BytesIO
+
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads/'  # Directory to save uploaded files
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload size
 
 # Ensure the upload directory exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def get_db():
     if 'db' not in g:
@@ -17,7 +18,7 @@ def get_db():
     g.db.start()
     return g.db
 
-def get_ocr():
+def get_ocr() -> OCRProcessor:
     if "OCR" not in app.config:
         app.config["OCR"] = OCRProcessor()
     return app.config["OCR"]
@@ -26,7 +27,7 @@ def get_ocr():
 def close_db(error):
     db = g.pop('db', None)
     if db is not None:
-        print("Database closed")
+        # print("Database closed")
         db._con.close()
 # --- Langchain Placeholder ---
 def get_ai_response_langchain_placeholder(user_message, attached_files_info=None):
@@ -53,10 +54,10 @@ def get_ai_response_langchain_placeholder(user_message, attached_files_info=None
         return "I'm designed to help with legal contract queries. Could you please rephrase your question or provide more details?"
 
 # --- Flask Routes ---
-@app.route('/contract')
+@app.route('/')
 def index():
     """Renders the main chat interface."""
-    return render_template('contract.html')
+    return render_template('index.html')
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
@@ -83,45 +84,60 @@ def send_message():
 
     return jsonify({'ai_response': ai_response, 'session_id': session_id})
 
-@app.route('/upload_file', methods=['POST'])
-def upload_file():
+@app.route('/process_audio', methods=['POST'])
+def process_audio():
+    f = request.files.get('rec_input')
+    print("Audio input", f.stream)
+
+    # TODO: Develop speach-to-text here to get text input
+
+    return jsonify({'transcribed_text': "Input audio transcription"})
+
+
+@app.route('/upload_files', methods=['POST'])
+def upload_files():
     """Handles file uploads."""
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-
-    file = request.files['file']
-
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        # file.save(filepath)
-        # print(f"File '{filename}' saved to {filepath}")
-        
-        ocr_processor = get_ocr()
-        
-        db = get_db()
-        db("Insert into file ()")
-        # In a real application, you'd likely process this file
-        # (e.g., store metadata in a DB, pass to Langchain for processing)
-        return jsonify({'message': f'File {filename} uploaded successfully.', 'filename': filename}), 200
+    image_files, pdf_files, text_files = request.files.getlist('image_files'), request.files.getlist('pdf_files'), request.files.getlist('text_files')
+    data = request.form
+    if not image_files+pdf_files+text_files:
+        return jsonify({'error': 'No file part or no selected files'}), 400
     
-    return jsonify({'error': 'File upload failed'}), 500
+    db = get_db()
+    session_id = data.get("session_id")
+    if not session_id:
+        session_id = db.create_session()
 
-# Optional: Route to serve file content for overview (if needed from backend)
-@app.route('/get_file_content/<filename>')
-def get_file_content(filename):
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                content = f.read()
-            return content, 200, {'Content-Type': 'text/plain; charset=utf-8'}
-        except Exception as e:
-            return jsonify({'error': f'Could not read file content: {str(e)}'}), 500
-    return jsonify({'error': 'File not found'}), 404
+    is_contract = 1 if data.get("is_contract") else 0
+    ocr_processor = get_ocr()
+
+    if image_files:
+        ocr_processor.read_image_list([file.read() for file in image_files])
+        images_text = ocr_processor.render_text()
+        name = "+".join(file.filename for file in image_files)
+        db("Insert into file (session_id, message_rank, is_contract, name, type, ocr_processed_content) Values (?,?,?,?,?,?)",
+            (session_id, data.get("message_rank"), is_contract, name, "IMAGES", images_text), fetch_num=None)
+
+    for file in pdf_files:
+        if file.filename == '':
+            # Skip empty file parts that might occur with some form submissions
+            continue
+        ocr_processor.read_pdf(file.stream)
+        pdf_text = ocr_processor.render_text()
+        db("Insert into file (session_id, message_rank, is_contract, name, type, ocr_processed_content) Values (?,?,?,?,?,?)",
+            (session_id, data.get("message_rank"), is_contract, file.filename, "PDF", pdf_text), fetch_num=None)
+
+    for file in text_files:
+        if file.filename == '':
+            # Skip empty file parts that might occur with some form submissions
+            continue
+        _text = file.read().decode('utf-8')
+        fname = file.filename
+        ftype = "TEXT" if "." not in fname else fname.split(".")[-1].upper()            
+
+        db("Insert into file (session_id, message_rank, is_contract, name, type, ocr_processed_content) Values (?,?,?,?,?,?)",
+            (session_id, data.get("message_rank"), is_contract, fname, ftype, _text), fetch_num=None)
+ 
+    return jsonify({"ocr_files": db.get_ocr_texts(session_id), "session_id":session_id})
 
 @app.route('/get_sessions')
 def get_sessions():
@@ -137,7 +153,7 @@ def get_session(session_id):
                    (session_id,))
     title = db("Select title from session where id=?", (session_id,))
     messages = [{'role': row[0], 'content': row[1], 'rank': row[2]} for row in results]
-    return jsonify({"title": title, "messages": messages})
+    return jsonify({"title": title, "messages": messages, "ocr_files": db.get_ocr_texts(session_id)})
 
 @app.route('/new_session', methods=['POST'])
 def new_session():
@@ -145,13 +161,30 @@ def new_session():
     session_id = db.create_session()
     return jsonify({'session_id': session_id})
 
-@app.route('/rename_session/<int:session_id>', methods=['POST'])
-def rename_session(session_id):
+@app.route('/rename_session', methods=['POST'])
+def rename_session():
     data = request.json
-    title = data.get("title")
     db = get_db()
+    session_id = data.get("session_id")
+    if not session_id:
+        session_id = db.create_session()
+    title = data.get("title")
+    
     db("Update session Set title=? Where id=?", (title, session_id,), fetch_num=None)
-    return jsonify({'success': True})
+    return jsonify({'session_id': session_id})
+
+@app.route('/delete_ocr/<int:file_id>', methods=['DELETE'])
+def delete_ocr(file_id):
+    db = get_db()
+    db("Delete from file where id=?", (file_id,), fetch_num=None)
+    return jsonify({'success':True})
+
+@app.route('/edit_ocr/<int:file_id>', methods=['POST'])
+def edit_ocr(file_id):
+    db = get_db()
+    new_text = request.json.get("new_text")
+    db("Update file set ocr_processed_content=? where id=?", (new_text, file_id), fetch_num=None)
+    return jsonify({'success':True})
 
 if __name__ == '__main__':
     app.run(port=5002, debug=True)
