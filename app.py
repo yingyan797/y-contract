@@ -1,11 +1,10 @@
 from flask import Flask, render_template, request, jsonify, g
 from werkzeug.utils import secure_filename
-import time, os # For simulating AI response delay
+import time, os, json # For simulating AI response delay
 from data_util import Database
 from agents.ocr import OCRProcessor
-from PIL import Image
 from io import BytesIO
-
+from agents.agent import AIModel
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload size
@@ -23,6 +22,11 @@ def get_ocr() -> OCRProcessor:
         app.config["OCR"] = OCRProcessor()
     return app.config["OCR"]
 
+def get_ai() -> AIModel:
+    if "AI" not in app.config:
+        app.config["AI"] = AIModel(False)
+    return app.config["AI"]
+
 @app.teardown_appcontext
 def close_db(error):
     db = g.pop('db', None)
@@ -30,28 +34,72 @@ def close_db(error):
         # print("Database closed")
         db._con.close()
 # --- Langchain Placeholder ---
-def get_ai_response_langchain_placeholder(user_message, attached_files_info=None):
+
+class AdviseState:
+    def __init__(self) -> None:
+        self.assessments = []
+        self.client_needs = []
+
+def get_state() -> AdviseState:
+    if "state" not in app.config:
+        app.config["state"] = AdviseState()
+    return app.config["state"]
+ 
+def get_ai_response_langchain_placeholder(user_message, contracts, aux_files):
     """
     Placeholder function for Langchain integration.
     This function would interact with a Langchain agent/chain.
     """
-    print(f"User message for AI: {user_message}")
-    print(f"Attached files for context: {attached_files_info}")
+    ai_model = get_ai()
+    ai_state = get_state()
+    ai_state.client_needs.append(user_message)
+    prompt = f"""
+        You are a legal advisor on client's circumstances on contracts. Given contract details and supplimentary materials, hearing
+        feedback from your colleague on the same client, briefly answer in Urdu:
+        1. For each contract, identify key clauses by chapter/section (compensation, termination, obligations, rights, etc.)
+    2. List specific red flags, unusual terms, or problematic clauses. Reference which contract and clause.
+    3. Evaluate risks and advantages:
+    - Overall risk level (low/medium/high)
+    - Financial risks/advantages
+    - Legal risks/advantages
+    - Practical implications
+    4. In order to derive these points with high confidence, is there enough information from client? If not ask informative 
+    question back and hint client to provide the missing information suitable format like typing or file uploading. 
+    Your question can be focusing on:
+    - User's specific situation and concerns
+    - Jurisdiction/location (important for legal advice)
+    - Context around identified issues
+    - Any ambiguous contract terms
+    5. Provide advise for the client to better handle their cases
 
-    # Simulate AI processing time
-    time.sleep(1.5)
+    Be thorough, specific, and reference contract sections.
 
-    # Basic, non-Langchain response for demonstration
-    if "hello" in user_message.lower():
-        return "Hello! How can I assist you with your legal contracts today?"
-    elif "contract" in user_message.lower() and attached_files_info:
-        return f"I see you mentioned 'contract' and have attached files like {', '.join(attached_files_info)}. Please specify what you'd like to analyze or discuss about them."
-    elif "contract" in user_message.lower():
-        return "Please tell me more about the contract you're referring to, or attach the document for analysis."
-    elif "thank you" in user_message.lower() or "thanks" in user_message.lower():
-        return "You're welcome! Feel free to ask if you have more questions."
-    else:
-        return "I'm designed to help with legal contract queries. Could you please rephrase your question or provide more details?"
+    Client's issues: {"; ".join(ai_state.client_needs)}
+
+    Contract details: {json.dumps(contracts)}
+
+    Supplimentary materials: {"" if aux_files else json.dumps(aux_files)}
+
+    Colleague advise to the client: {"; ".join(ai_state.assessments) }
+
+    Your response in Urdu:
+    """    
+    
+    response = ai_model.invoke(prompt)
+    ai_state.assessments.append(response)
+    return response
+
+    # # Basic, non-Langchain response for demonstration
+    # if "hello" in user_message.lower():
+    #     return "Hello! How can I assist you with your legal contracts today?"
+    # elif "contract" in user_message.lower() and attached_files_info:
+    #     return f"I see you mentioned 'contract' and have attached files like {', '.join(attached_files_info)}. Please specify what you'd like to analyze or discuss about them."
+    # elif "contract" in user_message.lower():
+    #     return "Please tell me more about the contract you're referring to, or attach the document for analysis."
+    # elif "thank you" in user_message.lower() or "thanks" in user_message.lower():
+    #     return "You're welcome! Feel free to ask if you have more questions."
+    # else:
+    #     return "I'm designed to help with legal contract queries. Could you please rephrase your question or provide more details?"
 
 # --- Flask Routes ---
 @app.route('/')
@@ -64,7 +112,6 @@ def send_message():
     """Handles incoming chat messages and generates AI response."""
     data = request.json
     user_message = data.get('message', '')
-    attached_files = data.get('attached_files', []) # List of filenames sent from frontend
     session_id = data.get('session_id')
     rank = data.get('rank')
 
@@ -78,7 +125,15 @@ def send_message():
     db.save_message(session_id, 'user', rank, user_message)
 
     # Call the Langchain placeholder
-    ai_response = get_ai_response_langchain_placeholder(user_message, attached_files)
+    contracts = []
+    aux = []
+    for file in db.get_ocr_texts(session_id):
+        if file["is_contract"] > 0:
+            contracts.append(file["text"])
+        else:
+            aux.append(file["text"])
+
+    ai_response = get_ai_response_langchain_placeholder(user_message, contracts, aux)
     # Save AI response to database
     db.save_message(session_id, 'assistant', rank+1, ai_response)
 

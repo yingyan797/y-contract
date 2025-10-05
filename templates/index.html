@@ -494,9 +494,36 @@
                 </audio>
             `
             const listen = document.createElement("button");
-            listen.textContent = "Listen response";
+            listen.textContent = "Get voice response";
+            listen.style.fontSize = "small";
             listen.addEventListener('click', () => {
                 // TODO: Text to Speech API
+                const apiUrl = "https://api.upliftai.org/v1/synthesis/text-to-speech";
+const apiKey = "YOUR_API_KEY_HERE";
+
+const requestData = {
+  "voiceId": "v_8eelc901",
+  "text": message,
+  "outputFormat": "MP3_22050_128",
+}
+
+fetch(apiUrl, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`
+  },
+  body: JSON.stringify(requestData)
+})
+.then(response => {
+  if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+  return response.blob(); // get audio as Blob
+})
+.then(
+    blob => {
+        const audioUrl = URL.createObjectURL(blob);
+        audioPanel.childNodes[0].src = audioUrl}
+)
             })
             audioPanel.appendChild(listen);
             messageDiv.appendChild(audioPanel);

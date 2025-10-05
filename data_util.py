@@ -71,9 +71,12 @@ class Database:
                     (session_id, role, rank, content))
         self._con.commit()
 
-    def get_ocr_texts(self, session_id):
+    def get_ocr_texts(self, session_id, message_rank=None):
         cursor = self._con.cursor()
-        result = cursor.execute("Select * From file where session_id=?", (session_id,))
+        if message_rank is None:
+            result = cursor.execute("Select * From file where session_id=?", (session_id,))
+        else:
+            result = cursor.execute("Select * From file where session_id=? And message_rank=?", (session_id,message_rank))
         return [{"id": r[0], "with_message": r[2], "is_contract": r[3], "file": f"[{r[5]}]-{r[4]}", "text": r[6]} for r in result.fetchall()]
     
     def __call__(self, query, params=(), fetch_num=0):
@@ -86,11 +89,10 @@ class Database:
         else:
             self._con.commit()
         
-        
 if __name__ == "__main__":
     db = Database('session.db')
     db.start()
-    # db("Delete from file", fetch_num=None)
-    # db("DELETE FROM sqlite_sequence WHERE name='file'", fetch_num=None)
+    db("Delete from file", fetch_num=None)
+    db("DELETE FROM sqlite_sequence WHERE name='file'", fetch_num=None)
     print(db("Select session_id, name from file"))
     
