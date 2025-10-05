@@ -3,12 +3,14 @@ from werkzeug.utils import secure_filename
 import time, os # For simulating AI response delay
 from data_util import Database
 from agents.ocr import OCRProcessor
+from agents.agent import AIModel
 from PIL import Image
 from io import BytesIO
-
+from textwrap import dedent
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload size
+agent = AIModel()
 
 # Ensure the upload directory exists
 
@@ -77,8 +79,31 @@ def send_message():
     # Save user message to database
     db.save_message(session_id, 'user', rank, user_message)
 
-    # Call the Langchain placeholder
-    ai_response = get_ai_response_langchain_placeholder(user_message, attached_files)
+    # Prepare messages for AI processing
+    all_messages = db('SELECT role, content FROM message WHERE session_id = ? ORDER BY rank', (session_id,))
+    chat_history = [{'role': role, 'content': content} for role, content in all_messages]
+
+    # Get all files of session from database for context, regardless of whether attached or not
+    uploaded_files_contents = db.get_file_contents(session_id)
+    uploaded_files_contents = "".join([
+        f"File {i + 1} - {f['name']}:\n{f['text']}\n\n"
+        for i, f in enumerate(uploaded_files_contents)
+    ])
+    chat_history.insert(0, {
+        'role': 'system',
+        'content': dedent(f"""You are a helpful legal assistant AI specializing in contract analysis and advice for Pakistani users. Provide clear, concise, and relevant answers based on user queries and any attached documents. Always respond professionally and in Urdu, regardless of the language used by the user or in the documents. If no files are provided, assume the user may have forgotten to attach them, and politely ask them to do so. Ask clarifying questions if the request is vague or lacks context. Stay focused and relevant to the documents and questions provided.
+
+        User uploaded files contents:
+        {uploaded_files_contents}
+        """.strip()
+        )
+    })
+
+
+    # # Call the Langchain placeholder
+    # ai_response = get_ai_response_langchain_placeholder(user_message, attached_files)
+    
+    ai_response = agent.get_response(chat_history, attached_files)
     # Save AI response to database
     db.save_message(session_id, 'assistant', rank+1, ai_response)
 

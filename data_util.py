@@ -76,6 +76,15 @@ class Database:
         result = cursor.execute("Select * From file where session_id=?", (session_id,))
         return [{"id": r[0], "with_message": r[2], "is_contract": r[3], "file": f"[{r[5]}]-{r[4]}", "text": r[6]} for r in result.fetchall()]
     
+    def get_file_contents(self, session_id):
+        """
+        Get all OCR processed texts for a given session.
+        Returns a list of dictionaries with file name and text.
+        """
+        cursor = self._con.cursor()
+        result = cursor.execute("Select name, type, ocr_processed_content From file where session_id=?", (session_id,))
+        return [{"name": f"{r[0]}.{r[1]}", "text": r[2]} for r in result.fetchall()]
+    
     def __call__(self, query, params=(), fetch_num=0):
         cursor = self._con.cursor()
         result = cursor.execute(query, params)

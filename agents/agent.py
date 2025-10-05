@@ -1,23 +1,25 @@
 from typing import TypedDict, List, Optional, Annotated
 import operator, os, dotenv
 from langgraph.graph import StateGraph, END
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chat_models.base import init_chat_model
 
+dotenv.load_dotenv()
+
 class AIModel:
-    def __init__(self, is_simulation) -> None:
+    def __init__(self, is_simulation=False) -> None:
         self.is_simulation = is_simulation
-        os.environ["GOOGLE_API_KEY"] = dotenv.get_key(".env","gemini_api")
+        # os.environ["GOOGLE_API_KEY"] = dotenv.get_key(".env","gemini_api")
         self.model = init_chat_model(
             model="gemini-2.5-flash-lite",
             model_provider="google_genai"
         )
 
-    def invoke(self, prompt):
+    def invoke(self, messages):
         if self.is_simulation:
             return "Simulation answer"
-        response = self.model.invoke(prompt).content
+        response = self.model.invoke(messages).content
         return response
 
 class ContractInfo(TypedDict):
@@ -75,3 +77,17 @@ class AdvisoryWorkflow:
         intro = state.get("user_intro")
         self.model.invoke()
 
+# Testing AI.
+if __name__ == '__main__':
+    print('hi')
+    ai = AIModel()
+    messages = [
+        SystemMessage(content="You are a bossy grumpy AI"),
+        HumanMessage(content="hi!"),
+        AIMessage(content="mpfh."),
+        HumanMessage(content="Umm. Hii? How r you doing? Isnt it lovely today?"),
+        AIMessage("Eh."),
+        HumanMessage("I mean look at it! So sunny and clean!")
+    ]
+
+    print(ai.invoke(messages))
