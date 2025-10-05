@@ -20,7 +20,7 @@
     display: flex;
     width: 97%;
     max-width: 1400px;
-    height: 80vh;
+    height: 95vh;
     background-color: #fff;
     border-radius: 10px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
@@ -102,19 +102,19 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding-top: 15px;
+    padding-top: 5px;
     border-top: 1px solid #eee;
 }
 
 #user-message {
     flex-grow: 1;
-    padding: 10px 15px;
+    padding: 5px 10px;
     border: 1px solid #ddd;
-    border-radius: 20px;
+    border-radius: 10px;
     resize: none;
     font-size: 1rem;
-    max-height: 80px;
-    min-height: 40px;
+    max-height: 180px;
+    min-height: 120px;
     box-sizing: border-box;
 }
 
@@ -284,14 +284,25 @@
                 </div>
             </div>
             <div class="chat-input-area">
-                <button id="attach-file-btn" class="icon-button" title="Attach Files" style="background-color: lightgreen;">📎</button>
-                <textarea id="user-message" placeholder="Type your message here..."></textarea>
+                <button id="mic-btn" class="icon-button" title="Record Audio" style="background-color: lightgreen;">🎤</button>
+                <textarea id="user-message" placeholder="Type your message (in any language you like)..."></textarea>
                 <button id="send-message-btn" class="icon-button" title="Send Message">➤</button>
+            </div>
+            <div id="audio-recorder" style="display: none; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 10px; background-color: #f9f9f9;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="start-record" style="padding: 5px 10px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">Start</button>
+                    <button id="stop-record" style="padding: 5px 10px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer;" disabled>Stop</button>
+                    <button id="confirm-record" style="padding: 5px 10px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;" disabled>Confirm</button>
+                    <!-- <button id="cancel-record" style="padding: 5px 10px; background-color: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">Cancel</button> -->
+                    <audio id="input-player" controls></audio>
+                    <span id="record-status" style="margin-left: 10px; color: #666;">Ready to record</span>
+                </div>
             </div>
         </div>
 
         <div class="file-management-section">
-            <table><tr><td><h3>Attached Documents</h3></td><td>
+            <table><tr><td><button id="attach-file-btn" class="icon-button" title="Attach Files" style="background-color: lightgreen;">📎</button></td><td><h3>
+                Attached Documents</h3></td><td>
                 <input type="radio" name="file-view-mode" value="raw" checked>Original files
                 <input type="radio" name="file-view-mode" value="ocr-text">Transcribed texts
             </td></tr></table>
@@ -347,6 +358,16 @@
     const cRenameBtn = document.getElementById('rename-cancel');
     let messageRank = 0;
     let fileRank = 0;
+
+    const micBtn = document.getElementById("mic-btn");
+    let mediaRecorder;
+    let recordedChunks = [];
+    let recordedBlob = null; // Declare recordedBlob
+    const startRecBtn = document.getElementById('start-record');
+    const stopRecBtn = document.getElementById('stop-record');
+    const confRecBtn = document.getElementById('confirm-record');
+    const recPlayer = document.getElementById('input-player');
+    const recStatus = document.getElementById('record-status');
 
     // File Overview Modal Elements
     const fileOverviewModal = document.getElementById('file-overview-modal');
@@ -512,6 +533,134 @@
         }
     });
 
+    // --- Microphone recording ---
+    function setStatus(s) { recStatus.textContent = s; } // Corrected reference to recStatus
+
+    startRecBtn.addEventListener('click', async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus('getUserMedia not supported in this browser');
+        return;
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
+        mediaRecorder.ondataavailable = e => {
+            if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstart = () => { setStatus('Recording...'); };
+        mediaRecorder.onstop = () => { setStatus('Stopped'); };
+
+        mediaRecorder.start();
+
+        startRecBtn.disabled = true;
+        stopRecBtn.disabled = false;
+        confRecBtn.disabled = true;
+
+        // Clear previous audio if any
+        if (recPlayer.src) {
+            URL.revokeObjectURL(recPlayer.src);
+            recPlayer.removeAttribute('src');
+            recPlayer.load();
+            recPlayer.controls = false;
+        }
+        recordedBlob = null;
+        recordedChunks = [];
+
+    } catch (err) {
+        console.error(err);
+        setStatus('Error accessing microphone: ' + err.message);
+        }
+    });
+
+    stopRecBtn.addEventListener('click', () => {
+        if (!mediaRecorder) return;
+        
+        startRecBtn.disabled = false;
+        stopRecBtn.disabled = true;
+
+        // Wait for the onstop event to process the recording
+        mediaRecorder.onstop = () => {
+            setStatus('Stopped');
+            
+            // Create blob for playback
+            if (recordedChunks.length > 0) {
+                const mimeType = recordedChunks[0]?.type || 'audio/webm'; // Fallback MIME type
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                recordedBlob = blob;
+                confRecBtn.disabled = false;
+
+                // Ensure player is stopped and cleared before setting new source
+                recPlayer.pause(); // Pause any current playback
+                if (recPlayer.src) {
+                    URL.revokeObjectURL(recPlayer.src);
+                }
+                recPlayer.removeAttribute('src'); // Clear the source attribute
+                recPlayer.load(); // Ensure the audio element is reset
+
+                // Set the new object URL as the source
+                const newBlobUrl = URL.createObjectURL(recordedBlob);
+                recPlayer.src = newBlobUrl;
+                recPlayer.controls = true; // Show controls
+                recPlayer.load(); // Explicitly tell the audio element to load the new source
+                console.log("Audio blob set for playback. Blob size:", recordedBlob.size, "type:", recordedBlob.type);
+                // recPlayer.play(); // Optional: uncomment to auto-play after recording stops
+            } else {
+                setStatus('No audio data recorded.');
+                recPlayer.controls = false;
+                recPlayer.removeAttribute('src');
+                recPlayer.load();
+            }
+        };
+        
+        mediaRecorder.stop(); // Stop the recorder - this will trigger onstop event
+    });
+
+    confRecBtn.addEventListener('click', async () => {
+        if (!recordedBlob) return;
+        
+        const form = new FormData();
+        form.append('file', recordedBlob, 'recording.webm');
+        
+        setStatus('Uploading...');
+        
+        try {
+            const res = await fetch('/record_audio', {
+                method: 'POST',
+                body: form
+            });
+            
+            if (res.ok) {
+                setStatus('Upload successful');
+                document.getElementById('audio-recorder').style.display = 'none';
+                // Revoke blob URL after successful upload and clear player state
+                if (recPlayer.src) {
+                    URL.revokeObjectURL(recPlayer.src);
+                    recPlayer.removeAttribute('src'); // Clear the source
+                    recPlayer.load(); // Reload the audio element
+                    recPlayer.controls = false; // Hide controls until new recording
+                }
+                recordedBlob = null; // Clear the recorded blob
+                recordedChunks = []; // Clear chunks for next recording
+            } else {
+                setStatus('Upload failed');
+            }
+        } catch (err) {
+            console.error(err);
+            setStatus('Upload error: ' + err.message);
+        }
+    });
+
+    micBtn.addEventListener('click', () => {
+        const recPanel = document.getElementById("audio-recorder");
+        if (recPanel.style.display != 'none') {
+            recPanel.style.display = 'none';
+        } else {
+            recPanel.style.display = 'block';
+        }
+    })
+
     // --- File Attachment & Management ---
     document.getElementsByName("file-view-mode").forEach((elem) => {
         elem.addEventListener("click", () => {
@@ -643,7 +792,7 @@
         renderFileList();
 
         // TODO: In a real app, send a request to backend to delete the file there too
-        console.log(`File '${filename}' removed.`);
+        console.log(`File with ID '${fileId}' removed.`); // Corrected log to use fileId
     };
 
     // --- File Overview Modal ---

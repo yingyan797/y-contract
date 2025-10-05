@@ -22,30 +22,34 @@ class AIModel:
 
 class ContractInfo(TypedDict):
     title: str
-    purpose: Optional[str]  # "employment" or "rental"
+    purposes: List[str]  # "employment" or "rental"
     parties: List[str]
     status: Optional[str]   # "Valid", "Unsigned", "Expired"
+    misc_info: dict
 
     text: str
     embeddings: Optional[str]
 
 class AuxFileInfo(TypedDict):
     category: Optional[str]   # Bank statement, email, proof 
-    relation_to_contract: Optional[str] # Supplimentary, evidence, rule against
-    
+    purposes: List[str]   # Bank statement, email, proof 
+    relation_to_contract: List[str] # Supplimentary, evidence, rule against
+    misc_info: dict
+
     text: str
     embeddings: Optional[str]
 
 # Define the state structure
-class ContractAdvisoryState(TypedDict):
+class AdvisoryState(TypedDict):
     """State for the contract advisory workflow"""
-    # Core contract information
+    # Core information
     contracts: List[ContractInfo]
+    user_intro: str
     
     # Analysis results
-    extracted_clauses: dict  # Key clauses organized by category {contract: [{chapter: sentence, ...}]}
-    identified_issues: List[str]  # Red flags or concerns
-    risk_assessment: dict  # Advantage and risk levels for different aspects
+    key_clauses: dict  # Key clauses organized by category {contract: [{chapter: sentence, ...}]}
+    major_issues: List[str]  # Red flags or concerns
+    risk_assessment: str  # Advantage and risk levels for different aspects
     
     # Information gathering
     missing_info: List[str]  # What additional info is needed
@@ -62,4 +66,12 @@ class ContractAdvisoryState(TypedDict):
     iteration_count: int
     next_action: str  # "analyze", "ask_questions", "provide_advice", "end"
 
+
+class AdvisoryWorkflow:
+    def __init__(self) -> None:
+        self.model = AIModel(False)
+
+    def reception(self, state: AdvisoryState):
+        intro = state.get("user_intro")
+        self.model.invoke()
 
