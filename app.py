@@ -87,9 +87,9 @@ def send_message():
 @app.route('/upload_files', methods=['POST'])
 def upload_files():
     """Handles file uploads."""
-    image_files, pdf_files = request.files.getlist('image_files'), request.files.getlist('pdf_files')
+    image_files, pdf_files, text_files = request.files.getlist('image_files'), request.files.getlist('pdf_files'), request.files.getlist('text_files')
     data = request.form
-    if not image_files+pdf_files:
+    if not image_files+pdf_files+text_files:
         return jsonify({'error': 'No file part or no selected files'}), 400
     
     db = get_db()
@@ -97,16 +97,15 @@ def upload_files():
     if not session_id:
         session_id = db.create_session()
 
-    # # Now you can use the bytes multiple times
-    # pil_images = [Image.open(BytesIO(data)) for data in image_data]
+    is_contract = 1 if data.get("is_contract") else 0
     ocr_processor = get_ocr()
-    ocr_processor.read_image_list([file.read() for file in image_files])
-    images_text = ocr_processor.render_text()
 
     if image_files:
+        ocr_processor.read_image_list([file.read() for file in image_files])
+        images_text = ocr_processor.render_text()
         name = "+".join(file.filename for file in image_files)
-        db("Insert into file (session_id, message_rank, name, type, ocr_processed_content) Values (?,?,?,?,?)",
-            (session_id, data.get("message_rank"), name, "IMAGES", images_text), fetch_num=None)
+        db("Insert into file (session_id, message_rank, is_contract, name, type, ocr_processed_content) Values (?,?,?,?,?,?)",
+            (session_id, data.get("message_rank"), is_contract, name, "IMAGES", images_text), fetch_num=None)
 
     for file in pdf_files:
         if file.filename == '':
@@ -114,10 +113,21 @@ def upload_files():
             continue
         ocr_processor.read_pdf(file.stream)
         pdf_text = ocr_processor.render_text()
-        db("Insert into file (session_id, message_rank, name, type, ocr_processed_content) Values (?,?,?,?)",
-            (session_id, data.get("message_rank"), file.filename, "PDF", pdf_text), fetch_num=None)
+        db("Insert into file (session_id, message_rank, is_contract, name, type, ocr_processed_content) Values (?,?,?,?,?,?)",
+            (session_id, data.get("message_rank"), is_contract, file.filename, "PDF", pdf_text), fetch_num=None)
 
-    return jsonify({"ocr_files": db.get_ocr_texts(session_id)})
+    for file in text_files:
+        if file.filename == '':
+            # Skip empty file parts that might occur with some form submissions
+            continue
+        _text = file.read().decode('utf-8')
+        fname = file.filename
+        ftype = "TEXT" if "." not in fname else fname.split(".")[-1].upper()            
+
+        db("Insert into file (session_id, message_rank, is_contract, name, type, ocr_processed_content) Values (?,?,?,?,?,?)",
+            (session_id, data.get("message_rank"), is_contract, fname, ftype, _text), fetch_num=None)
+ 
+    return jsonify({"ocr_files": db.get_ocr_texts(session_id), "session_id":session_id})
 
 @app.route('/get_sessions')
 def get_sessions():
@@ -141,10 +151,11 @@ def new_session():
     session_id = db.create_session()
     return jsonify({'session_id': session_id})
 
-@app.route('/rename_session/<int:session_id>', methods=['POST'])
-def rename_session(session_id):
+@app.route('/rename_session', methods=['POST'])
+def rename_session():
     data = request.json
     db = get_db()
+    session_id = data.get("session_id")
     if not session_id:
         session_id = db.create_session()
     title = data.get("title")

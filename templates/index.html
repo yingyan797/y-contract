@@ -299,7 +299,9 @@
                 <table>
                     <tr><td>Upload images</td><td><input type="file" id="image-input" accept="image/*" multiple /></td></tr>
                     <tr><td>Upload PDFs</td><td><input type="file" id="pdf-input" accept="pdf" multiple /></td></tr>
-                    <tr><td><button id="upload-all">Upload All</button></td></tr>
+                    <tr><td>Upload Texts</td><td><input type="file" id="text-input" accept="text/*" multiple /></td></tr>
+                    <tr><td><input type="checkbox" id="cMark" value="contract">Mark as Contract(s)
+                        <button id="upload-all">Upload All</button></td></tr>
                 </table>
             </div>
             <ul id="file-list" class="file-list">
@@ -328,6 +330,7 @@
     const fileInput = document.getElementById('file-input');
     const imageInput = document.getElementById('image-input');
     const pdfInput = document.getElementById('pdf-input');
+    const textInput = document.getElementById('text-input');
     const attachFileBtn = document.getElementById('attach-file-btn');
     const uploadBtn = document.getElementById("upload-all")
     const fileList = document.getElementById('file-list');
@@ -412,10 +415,14 @@
             cRenameBtn.style.display = 'block';
         } else {
             const newTitle = document.getElementById("rename-text").value;
-            const response = await fetch('/rename_session/'+currentSessionId, { method: 'POST', headers: {
+            const body = { title: newTitle };
+            if (currentSessionId > 0) {
+                body.session_id = currentSessionId;
+            }
+            const response = await fetch('/rename_session', { method: 'POST', headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ session_id: currentSessionId, title: newTitle }), // Send filenames for context
+                body: JSON.stringify(body), // Send filenames for context
             });
             currentSessionId = response.json().session_id;
             titleD.innerHTML = newTitle;
@@ -468,12 +475,17 @@
         // Placeholder for sending message to backend and getting AI response
         // In a real app, you'd send `message` and any attached files' IDs
         try {
+
+            const body = { message: message, rank: messageRank};
+            if (currentSessionId > 0) {
+                body.session_id = currentSessionId;
+            }
             const response = await fetch('/send_message', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ message: message, session_id: currentSessionId, rank: messageRank}), // Send filenames for context
+                body: JSON.stringify(body), // Send filenames for context
             });
 
             if (!response.ok) {
@@ -527,14 +539,15 @@
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             fileRank++;
+            // console.log("Add to session "+currentSessionId)
             attachedFiles.push({id: fileRank, sessionId: currentSessionId, withMessage: messageRank+1, body: file});
         }
     };
 
     function renderFileList() {
         fileList.innerHTML = "";
-        let numFiles = 0;
         attachedFiles.forEach((file) => {
+            // console.log(file.id+" "+file.sessionId)
             if (file.sessionId != currentSessionId) {
                 return;
             }
@@ -570,8 +583,19 @@
         ocr_files.forEach((ocr_file, i) => {
             const ocr_item = document.createElement("div");
             const info = document.createElement("li");
-            info.textContent = ocr_file.id+": Msg #"+ocr_file.with_message+": "+ocr_file.file;
+            const head = document.createElement("strong");
+            head.textContent = ocr_file.id+": Msg #"+ocr_file.with_message+": "
+            const name = document.createElement("span");
+            name.textContent = ocr_file.file;
             info.classList.add("file-name")
+            info.appendChild(head);
+            info.appendChild(name);
+            if (ocr_file.is_contract > 0) {
+                const contractLabel = document.createElement("i");
+                contractLabel.textContent = "<Contract>";
+                contractLabel.style.color = "lightseagreen";
+                info.appendChild(contractLabel);
+            }
 
             const removeButton = document.createElement('button');
             removeButton.classList.add('remove-file-btn');
@@ -680,12 +704,18 @@
         }
     });
 
-    const processImagesAndPDFs = async (imageFiles, pdfFiles) => {
+    const processMedia = async (imageFiles, pdfFiles, textFiles) => {
         const formData = new FormData();
-        formData.append('session_id', currentSessionId);
+        if (document.getElementById("cMark").checked) {
+            formData.append('is_contract', 1);
+        }
+        if (currentSessionId > 0) {
+            formData.append('session_id', currentSessionId);
+        }
         formData.append('message_rank', messageRank+1);
         Array.from(imageFiles).forEach(file => formData.append('image_files', file));
         Array.from(pdfFiles).forEach(file => formData.append('pdf_files', file));
+        Array.from(textFiles).forEach(file => formData.append('text_files', file));
         
         try {
             const response = await fetch('/upload_files', {
@@ -698,7 +728,9 @@
             }
             
             const data = await response.json();
-            currentSessionId = data.session_id;
+            currentSessionId = data.session_id; // Update current session
+            sessionNumD.textContent = currentSessionId;
+            loadSessions();
             renderOcrFiles(data.ocr_files);
         } catch (error) {
             console.error('Error processing documents:', error);
@@ -708,13 +740,19 @@
     uploadBtn.addEventListener('click', async () => {
         const imageFiles = imageInput.files;
         const pdfFiles = pdfInput.files;
+        const textFiles = textInput.files;
         
-        if (imageFiles.length + pdfFiles.length > 0) {
+        if (imageFiles.length + pdfFiles.length + textFiles.length > 0) {
+            await processMedia(imageFiles, pdfFiles, textFiles);
             handleFilesAttached(imageFiles);
             handleFilesAttached(pdfFiles);
+            handleFilesAttached(textFiles);
             renderFileList();
-            await processImagesAndPDFs(imageFiles, pdfFiles);
         }
+        imageInput.value = "" ;
+        pdfInput.value = "" ;
+        textInput.value = "" ;
+
     });
 
     // Initial check for no files
