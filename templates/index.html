@@ -285,7 +285,7 @@
             </div>
             <div class="chat-input-area">
                 <button id="mic-btn" class="icon-button" title="Record Audio" style="background-color: lightgreen;">🎤</button>
-                <textarea id="user-message" placeholder="Type your message (in any language you like)..."></textarea>
+                <textarea id="user-message" placeholder="Type message or speak to ^Y-Contract in any language you like ..."></textarea>
                 <button id="send-message-btn" class="icon-button" title="Send Message">➤</button>
             </div>
             <div id="audio-recorder" style="display: none; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 10px; background-color: #f9f9f9;">
@@ -301,8 +301,8 @@
         </div>
 
         <div class="file-management-section">
-            <table><tr><td><button id="attach-file-btn" class="icon-button" title="Attach Files" style="background-color: lightgreen;">📎</button></td><td><h3>
-                Attached Documents</h3></td><td>
+            <table><tr><td><button id="attach-file-btn" title="Attach Files" style="background-color: lightgreen;">+ Add document</button></td><td><h3>
+                All Documents</h3></td><td>
                 <input type="radio" name="file-view-mode" value="raw" checked>Original files
                 <input type="radio" name="file-view-mode" value="ocr-text">Transcribed texts
             </td></tr></table>
@@ -481,7 +481,27 @@
     const addMessageToChat = (message, sender) => {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', `${sender}-message`);
-        messageDiv.innerHTML = `${message} <strong style='color:blue'> -(${messageRank}) </strong>`;
+        const messageText = document.createElement('p');
+        messageText.textContent = `${messageRank}) ${message}`;
+        messageDiv.append(messageText);
+        if (sender == 'bot') {
+            messageText.style.marginBottom = "10px";
+            const audioPanel = document.createElement("div");
+            // audioPanel.style.backgroundColor = "grey";
+            audioPanel.innerHTML = `
+                <audio controls src="/uploads/recording.webm" style='height: 20px'>
+                    Your browser does not support the audio element.
+                </audio>
+            `
+            const listen = document.createElement("button");
+            listen.textContent = "Listen response";
+            listen.addEventListener('click', () => {
+                // TODO: Text to Speech API
+            })
+            audioPanel.appendChild(listen);
+            messageDiv.appendChild(audioPanel);
+
+        }
         chatHistory.appendChild(messageDiv);
         chatHistory.scrollTop = chatHistory.scrollHeight; // Auto-scroll to bottom
     };
@@ -621,15 +641,16 @@
         if (!recordedBlob) return;
         
         const form = new FormData();
-        form.append('file', recordedBlob, 'recording.webm');
+        form.append('rec_input', recordedBlob, 'recording.webm');
         
         setStatus('Uploading...');
         
         try {
-            const res = await fetch('/record_audio', {
+            const res = await fetch('/process_audio', {
                 method: 'POST',
                 body: form
             });
+            const data = await res.json();
             
             if (res.ok) {
                 setStatus('Upload successful');
@@ -643,6 +664,7 @@
                 }
                 recordedBlob = null; // Clear the recorded blob
                 recordedChunks = []; // Clear chunks for next recording
+                userMessageInput.value = data.transcribed_text;
             } else {
                 setStatus('Upload failed');
             }

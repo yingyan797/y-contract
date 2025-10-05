@@ -84,6 +84,16 @@ def send_message():
 
     return jsonify({'ai_response': ai_response, 'session_id': session_id})
 
+@app.route('/process_audio', methods=['POST'])
+def process_audio():
+    f = request.files.get('rec_input')
+    print("Audio input", f.stream)
+
+    # TODO: Develop speach-to-text here to get text input
+
+    return jsonify({'transcribed_text': "Input audio transcription"})
+
+
 @app.route('/upload_files', methods=['POST'])
 def upload_files():
     """Handles file uploads."""
